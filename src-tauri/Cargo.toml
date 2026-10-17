@@ -1,0 +1,79 @@
+[package]
+name = "laradoc-studio"
+version = "0.1.0"
+description = "A cross-platform local development environment for Laravel developers"
+authors = ["Laradoc Studio Contributors"]
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "laradoc_studio_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri v2 Core & Plugins
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-opener = "2"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Filesystem Watcher (Auto-VHost)
+notify = "6"
+notify-debouncer-mini = "0.4"
+
+# Template Engine (Nginx config generation)
+minijinja = "2"
+
+# Cryptography / PKI (Root CA & wildcard TLS certs)
+rcgen = "0.13"
+
+# System & Process Auditing (port conflicts, PID inspection)
+sysinfo = "0.31"
+
+# Date & Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Unique IDs (email IDs, request tracking)
+uuid = { version = "1", features = ["v4"] }
+
+# Error Handling
+thiserror = "2"
+
+# Utilities
+dirs = "5"
+open = "5"
+
+# Unix-specific: process groups and signals
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["process", "signal"] }
+libc = "0.2"
+
+# Windows-specific: Job Objects, UAC elevation, process management
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_UI_Shell",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_Foundation",
+    "Win32_Security",
+] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

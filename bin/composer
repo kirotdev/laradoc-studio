@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Laradoc Studio — Smart Composer CLI Shim
+# Dynamically resolves and invokes the correct PHP binary (8.2, 8.3, 8.4, 8.5)
+# based on current project directory (.php-version or composer.json) or active global PHP.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# 1. Check for project-specific PHP version override
+PHP_VERSION=""
+
+if [ -f ".php-version" ]; then
+    PHP_VERSION="$(cat .php-version | tr -d '[:space:]')"
+elif [ -f "composer.json" ]; then
+    # Simple regex extraction for php constraint like "^8.2", "8.3", "~8.4"
+    PHP_VERSION=$(grep -E '"php"\s*:' composer.json | head -n1 | grep -oE '[0-9]+\.[0-9]+' | head -n1 || true)
+fi
+
+# 2. If not detected from project, use environment variable or global default (8.3)
+if [ -z "$PHP_VERSION" ]; then
+    PHP_VERSION="${LARADOC_PHP_VERSION:-8.3}"
+fi
+
+# Sanitize version to major.minor
+case "$PHP_VERSION" in
+    8.2*|php8.2*) PHP_VERSION="8.2" ;;
+    8.3*|php8.3*) PHP_VERSION="8.3" ;;
+    8.4*|php8.4*) PHP_VERSION="8.4" ;;
+    8.5*|php8.5*) PHP_VERSION="8.5" ;;
+    *) PHP_VERSION="8.3" ;;
+esac
+
+# 3. Locate PHP binary
+PHP_BIN=""
+CANDIDATE_PATHS=(
+    "${BASE_DIR}/bin/php/${PHP_VERSION}/bin/php"
+    "${BASE_DIR}/bin/php${PHP_VERSION}/php"
+    "$HOME/Library/Application Support/studio.laradoc.app/bin/php/${PHP_VERSION}/bin/php"
+    "$HOME/.local/share/laradoc-studio/bin/php/${PHP_VERSION}/bin/php"
+    "/opt/laradoc-studio/bin/php/${PHP_VERSION}/bin/php"
+    "$(which "php${PHP_VERSION}" 2>/dev/null || true)"
+    "$(which php 2>/dev/null || true)"
+)
+
+for p in "${CANDIDATE_PATHS[@]}"; do
+    if [ -n "$p" ] && [ -x "$p" ]; then
+        PHP_BIN="$p"
+        break
+    fi
+done
+
+if [ -z "$PHP_BIN" ]; then
+    echo "[Laradoc Studio] Error: Could not locate PHP ${PHP_VERSION} binary." >&2
+    echo "Please ensure PHP ${PHP_VERSION} is installed or select another version in Laradoc Studio." >&2
+    exit 1
+fi
+
+# 4. Locate composer.phar
+COMPOSER_PHAR=""
+COMPOSER_CANDIDATES=(
+    "${BASE_DIR}/bin/composer.phar"
+    "${BASE_DIR}/bin/composer/composer.phar"
+    "$HOME/Library/Application Support/studio.laradoc.app/bin/composer.phar"
+    "$HOME/.local/share/laradoc-studio/bin/composer.phar"
+    "$(which composer 2>/dev/null || true)"
+)
+
+for c in "${COMPOSER_CANDIDATES[@]}"; do
+    if [ -n "$c" ] && [ -f "$c" ]; then
+        COMPOSER_PHAR="$c"
+        break
+    fi
+done
+
+if [ -n "$COMPOSER_PHAR" ]; then
+    exec "$PHP_BIN" "$COMPOSER_PHAR" "$@"
+else
+    # Fallback to system composer if available
+    if command -v composer >/dev/null 2>&1; then
+        exec composer "$@"
+    else
+        echo "[Laradoc Studio] Error: composer.phar not found." >&2
+        exit 1
+    fi
+fi
