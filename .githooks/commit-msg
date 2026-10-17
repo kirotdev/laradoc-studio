@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Laradoc Studio Commit-Msg Hook
+# Enforces Conventional Commits 1.0.0 format
+
+COMMIT_MSG_FILE="$1"
+FIRST_LINE=$(head -n 1 "$COMMIT_MSG_FILE")
+
+# Allow automated merge/revert commits
+if echo "$FIRST_LINE" | grep -Eq '^(Merge branch|Revert|Initial commit|Release v)'; then
+    exit 0
+fi
+
+# Regex pattern for Conventional Commits:
+# <type>(<scope>): <subject>  OR  <type>: <subject>
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-zA-Z0-9_-]+\))?: .{5,100}$'
+
+if ! echo "$FIRST_LINE" | grep -Eq "$PATTERN"; then
+    echo "❌ [GIT HOOK ERROR] Invalid commit message format."
+    echo ""
+    echo "   Your message: \"$FIRST_LINE\""
+    echo ""
+    echo "   Allowed format:"
+    echo "     <type>(<scope>): <subject>"
+    echo "     <type>: <subject>"
+    echo ""
+    echo "   Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
+    echo "   Allowed scopes: supervisor, pki, hosts, vhost, tray, mail, ui, ipc, config, deps, git"
+    echo ""
+    echo "   Examples:"
+    echo "     feat(supervisor): add windows job objects kill-on-close"
+    echo "     fix(hosts): handle permission denied on elevation reject"
+    echo "     docs(git): update branching strategy"
+    echo ""
+    exit 1
+fi
+
+exit 0

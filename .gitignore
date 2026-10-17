@@ -1,0 +1,68 @@
+# Compiled Rust outputs
+target/
+src-tauri/target/
+**/*.rs.bk
+*.pdb
+
+# Node.js & UI build outputs
+node_modules/
+ui/node_modules/
+dist/
+ui/dist/
+.vite/
+ui/.vite/
+*.tsbuildinfo
+
+# Environment and sensitive keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+etc/ssl/*.key
+etc/ssl/ca.key
+etc/ssl/wildcard.test.key
+
+# Local Runtime & Service data
+data/pids/*.pid
+data/mail/*.json
+data/logs/*.log
+logs/
+*.log
+
+# Generated Virtual Hosts (keep templates and sample, ignore generated runtime confs)
+etc/nginx/sites-enabled/*.conf
+!etc/nginx/sites-enabled/.gitkeep
+
+# Developer workspace websites (keep folder structure and .gitkeep, ignore actual user web projects)
+www/*
+!www/.gitkeep
+!www/default/
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# IDE & Editor files
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# Tauri temporary files
+.tauri/
+src-tauri/WixTools/

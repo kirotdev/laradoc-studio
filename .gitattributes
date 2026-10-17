@@ -1,0 +1,49 @@
+# Set default behavior to automatically normalize line endings to LF
+* text=auto eol=lf
+
+# Explicit text files with LF
+*.rs        text eol=lf diff=rust
+*.ts        text eol=lf diff=typescript
+*.tsx       text eol=lf diff=typescript
+*.js        text eol=lf diff=javascript
+*.jsx       text eol=lf diff=javascript
+*.json      text eol=lf diff=json
+*.toml      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf diff=markdown
+*.css       text eol=lf diff=css
+*.html      text eol=lf diff=html
+*.conf      text eol=lf
+*.ini       text eol=lf
+*.sh        text eol=lf
+
+# Windows-specific scripts need CRLF
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Binary assets (prevent Git from modifying or attempting diffs)
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.icns      binary
+*.svg       text eol=lf
+*.webp      binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary
+
+# Executables & libraries
+*.exe       binary
+*.dll       binary
+*.so        binary
+*.dylib     binary
+*.zip       binary
+*.tar.gz    binary
+*.7z        binary
+*.msi       binary
+*.dmg       binary
