@@ -26,7 +26,7 @@ pub async fn run_smtp_server(
                 let store_clone = Arc::clone(&store);
                 let app_clone = app.clone();
 
-                tokio::spawn(async move {
+                tauri::async_runtime::spawn(async move {
                     if let Err(e) = handle_smtp_session(socket, store_clone, app_clone).await {
                         log::warn!("SMTP session error from {}: {}", peer, e);
                     }
