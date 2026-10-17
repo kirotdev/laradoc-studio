@@ -52,7 +52,7 @@ pub fn run() {
             // Spawn the mail SMTP server
             let mail_handle = app_handle.clone();
             let mail_store_bg = Arc::clone(&mail_store);
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 if let Err(e) = mail::smtp::run_smtp_server(
                     "127.0.0.1:1025",
                     mail_store_bg,
@@ -68,7 +68,7 @@ pub fn run() {
             let vhost_handle = app_handle.clone();
             let data_dir = app.path().app_data_dir().unwrap_or_default();
             let www_dir = data_dir.join("www");
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 if let Err(e) = vhost::watcher::watch_www_directory(www_dir, vhost_handle).await {
                     log::error!("Directory watcher error: {}", e);
                 }

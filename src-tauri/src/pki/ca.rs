@@ -1,10 +1,11 @@
 use rcgen::{
-    BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
-    ExtendedKeyUsagePurpose, IsCa, KeyUsagePurpose, SanType,
+    BasicConstraints, CertificateParams, DistinguishedName, DnType,
+    ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
 };
 use std::path::Path;
 
 /// Manages the local Root CA and wildcard *.test certificate generation
+#[allow(dead_code)]
 pub struct LocalCa {
     ca_cert_pem: String,
     ca_key_pem: String,
@@ -30,7 +31,8 @@ impl LocalCa {
         }
 
         // Generate a new Root CA
-        let mut params = CertificateParams::default();
+        let mut params = CertificateParams::new(Vec::<String>::new())
+            .map_err(|e| format!("CA params failed: {}", e))?;
         let mut dn = DistinguishedName::new();
         dn.push(DnType::CommonName, "Laradoc Studio Local CA");
         dn.push(DnType::OrganizationName, "Laradoc Studio");
@@ -47,12 +49,14 @@ impl LocalCa {
         params.not_before = rcgen::date_time_ymd(2024, 1, 1);
         params.not_after = rcgen::date_time_ymd(2034, 1, 1);
 
-        let ca = Certificate::from_params(params)
+        let key_pair = KeyPair::generate()
+            .map_err(|e| format!("CA key generation failed: {}", e))?;
+
+        let ca = params.self_signed(&key_pair)
             .map_err(|e| format!("CA generation failed: {}", e))?;
 
-        let ca_cert_pem = ca.serialize_pem()
-            .map_err(|e| format!("Serialize CA cert: {}", e))?;
-        let ca_key_pem = ca.serialize_private_key_pem();
+        let ca_cert_pem = ca.pem();
+        let ca_key_pem = key_pair.serialize_pem();
 
         // Save to disk
         std::fs::write(&cert_path, &ca_cert_pem)
@@ -83,25 +87,17 @@ impl LocalCa {
             return Ok((cert, key));
         }
 
-        // Load CA for signing
-        let ca_params = CertificateParams::from_ca_cert_pem(&self.ca_cert_pem, &self.ca_key_pem)
-            .map_err(|e| format!("Load CA params: {}", e))?;
-        let ca_cert = Certificate::from_params(ca_params)
-            .map_err(|e| format!("Rebuild CA: {}", e))?;
+        // Wildcard params with SANs
+        let mut params = CertificateParams::new(vec![
+            "*.test".to_string(),
+            "localhost".to_string(),
+        ])
+        .map_err(|e| format!("Wildcard params error: {}", e))?;
 
-        // Wildcard params
-        let mut params = CertificateParams::default();
         let mut dn = DistinguishedName::new();
         dn.push(DnType::CommonName, "*.test");
         params.distinguished_name = dn;
-        params.subject_alt_names = vec![
-            SanType::DnsName("*.test".into()),
-            SanType::DnsName("localhost".into()),
-            SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
-        ];
-        params.extended_key_usages = vec![
-            ExtendedKeyUsagePurpose::ServerAuth,
-        ];
+        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
         params.key_usages = vec![
             KeyUsagePurpose::DigitalSignature,
             KeyUsagePurpose::KeyEncipherment,
@@ -109,13 +105,35 @@ impl LocalCa {
         params.not_before = rcgen::date_time_ymd(2024, 1, 1);
         params.not_after = rcgen::date_time_ymd(2034, 1, 1);
 
-        let cert = Certificate::from_params(params)
-            .map_err(|e| format!("Wildcard cert gen failed: {}", e))?;
+        let wildcard_key = KeyPair::generate()
+            .map_err(|e| format!("Wildcard key error: {}", e))?;
 
-        let cert_pem = cert
-            .serialize_pem_with_signer(&ca_cert)
-            .map_err(|e| format!("Sign wildcard cert: {}", e))?;
-        let key_pem = cert.serialize_private_key_pem();
+        // Rebuild CA cert representation for signing
+        let mut ca_params = CertificateParams::new(Vec::<String>::new())
+            .map_err(|e| format!("CA params error: {}", e))?;
+        let mut ca_dn = DistinguishedName::new();
+        ca_dn.push(DnType::CommonName, "Laradoc Studio Local CA");
+        ca_dn.push(DnType::OrganizationName, "Laradoc Studio");
+        ca_dn.push(DnType::CountryName, "US");
+        ca_params.distinguished_name = ca_dn;
+        ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        ca_params.key_usages = vec![
+            KeyUsagePurpose::KeyCertSign,
+            KeyUsagePurpose::CrlSign,
+            KeyUsagePurpose::DigitalSignature,
+        ];
+
+        let ca_key = KeyPair::from_pem(&self.ca_key_pem)
+            .map_err(|e| format!("Load CA key failed: {}", e))?;
+        let ca_cert = ca_params.self_signed(&ca_key)
+            .map_err(|e| format!("Self-sign CA failed: {}", e))?;
+
+        let cert = params
+            .signed_by(&wildcard_key, &ca_cert, &ca_key)
+            .map_err(|e| format!("Sign wildcard cert failed: {}", e))?;
+
+        let cert_pem = cert.pem();
+        let key_pem = wildcard_key.serialize_pem();
 
         std::fs::write(&cert_path, &cert_pem)
             .map_err(|e| format!("Write wildcard cert: {}", e))?;

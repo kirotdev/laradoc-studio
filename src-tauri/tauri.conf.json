@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev --prefix ../ui",
-    "beforeBuildCommand": "npm run build --prefix ../ui"
+    "beforeDevCommand": "npm run dev --prefix ui",
+    "beforeBuildCommand": "npm run build --prefix ui"
   },
   "app": {
     "windows": [
@@ -39,11 +39,5 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {
-    "opener": {
-      "open": {
-        "enabled": true
-      }
-    }
-  }
+  "plugins": {}
 }
