@@ -1,4 +1,4 @@
-use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -18,9 +18,9 @@ pub async fn watch_www_directory(
             .map_err(|e| format!("Cannot create www/: {}", e))?;
     }
 
-    let (tx, rx) = std::sync::mpsc::channel::<Result<Vec<DebouncedEvent>, Vec<notify::Error>>>();
+    let (tx, rx) = std::sync::mpsc::channel();
 
-    let mut debouncer = new_debouncer(Duration::from_millis(500), None, tx)
+    let mut debouncer = new_debouncer(Duration::from_millis(500), tx)
         .map_err(|e| format!("Debouncer init failed: {}", e))?;
 
     debouncer
@@ -38,10 +38,8 @@ pub async fn watch_www_directory(
                     handle_www_event(&event, &www_dir, &app).await;
                 }
             }
-            Ok(Err(errors)) => {
-                for e in errors {
-                    log::warn!("Watcher error: {}", e);
-                }
+            Ok(Err(err)) => {
+                log::warn!("Watcher error: {:?}", err);
             }
             Err(_) => {
                 log::warn!("www/ watcher channel closed");
