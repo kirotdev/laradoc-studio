@@ -79,7 +79,19 @@ impl ServiceManager {
     }
 
     pub async fn start_service(&mut self, kind: ServiceKind, _app: AppHandle) {
-        // Pre-flight: check port availability
+        // Special case: Mailpit is our built-in embedded Rust SMTP server on 1025
+        if kind == ServiceKind::Mailpit {
+            if let Some(svc) = self.services.get_mut(&kind) {
+                svc.state = ServiceState::Running;
+                svc.started_at = Some(std::time::Instant::now());
+                svc.error_message = None;
+                svc.conflict_process = None;
+            }
+            log::info!("Embedded Mail Catcher (SMTP 1025) is active");
+            return;
+        }
+
+        // Pre-flight 1: Port availability check
         if let Some(svc) = self.services.get(&kind) {
             let port = svc.port;
             if !self.is_port_free(port) {
@@ -93,16 +105,34 @@ impl ServiceManager {
             }
         }
 
+        // Pre-flight 2: Binary availability resolution
+        let binary = match self.resolve_binary(&kind) {
+            Some(b) => b,
+            None => {
+                if let Some(svc_mut) = self.services.get_mut(&kind) {
+                    svc_mut.state = ServiceState::Error;
+                    svc_mut.error_message = Some(format!(
+                        "Binary for {} not installed yet. Place in bin/ or install via Homebrew.",
+                        kind.as_str()
+                    ));
+                }
+                log::warn!("Binary for {:?} not found", kind);
+                return;
+            }
+        };
+
         if let Some(svc) = self.services.get_mut(&kind) {
             svc.state = ServiceState::Starting;
+            svc.error_message = None;
+            svc.conflict_process = None;
         }
 
         // Platform-specific process spawn
         #[cfg(unix)]
-        let result = unix::spawn_service(&kind, &self.config).await;
+        let result = unix::spawn_service(&kind, &self.config, &binary).await;
 
         #[cfg(windows)]
-        let result = windows::spawn_service(&kind, &self.config).await;
+        let result = windows::spawn_service(&kind, &self.config, &binary).await;
 
         #[cfg(not(any(unix, windows)))]
         let result: Result<u32, String> = Err("Unsupported platform".into());
@@ -125,6 +155,14 @@ impl ServiceManager {
     }
 
     pub async fn stop_service(&mut self, kind: &ServiceKind) {
+        if kind == &ServiceKind::Mailpit {
+            if let Some(svc) = self.services.get_mut(kind) {
+                svc.state = ServiceState::Stopped;
+                svc.started_at = None;
+            }
+            return;
+        }
+
         let pid = self.services.get(kind).and_then(|s| s.pid);
 
         if let Some(pid) = pid {
@@ -144,6 +182,58 @@ impl ServiceManager {
         }
     }
 
+    pub fn resolve_binary(&self, kind: &ServiceKind) -> Option<String> {
+        let bundled = format!("{}/{}", self.config.bin_directory, kind.binary_name());
+        if std::path::Path::new(&bundled).exists() {
+            return Some(bundled);
+        }
+
+        let candidates = match kind {
+            ServiceKind::Nginx => vec![
+                "/opt/homebrew/bin/nginx",
+                "/usr/local/bin/nginx",
+                "/usr/bin/nginx",
+            ],
+            ServiceKind::Php82 => vec![
+                "/opt/homebrew/opt/php@8.2/sbin/php-fpm",
+                "/usr/local/opt/php@8.2/sbin/php-fpm",
+            ],
+            ServiceKind::Php83 => vec![
+                "/opt/homebrew/opt/php@8.3/sbin/php-fpm",
+                "/usr/local/opt/php@8.3/sbin/php-fpm",
+                "/opt/homebrew/sbin/php-fpm",
+                "/usr/local/sbin/php-fpm",
+            ],
+            ServiceKind::Php84 => vec![
+                "/opt/homebrew/opt/php@8.4/sbin/php-fpm",
+                "/usr/local/opt/php@8.4/sbin/php-fpm",
+            ],
+            ServiceKind::Php85 => vec![
+                "/opt/homebrew/opt/php@8.5/sbin/php-fpm",
+                "/usr/local/opt/php@8.5/sbin/php-fpm",
+            ],
+            ServiceKind::Mysql => vec![
+                "/opt/homebrew/bin/mysqld_safe",
+                "/opt/homebrew/bin/mariadbd-safe",
+                "/usr/local/bin/mysqld_safe",
+            ],
+            ServiceKind::Redis => vec![
+                "/opt/homebrew/bin/redis-server",
+                "/usr/local/bin/redis-server",
+                "/usr/bin/redis-server",
+            ],
+            ServiceKind::Mailpit => vec![],
+        };
+
+        for c in candidates {
+            if std::path::Path::new(c).exists() {
+                return Some(c.to_string());
+            }
+        }
+
+        None
+    }
+
     pub async fn restart_service(&mut self, kind: ServiceKind, app: AppHandle) {
         self.stop_service(&kind).await;
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -159,24 +249,43 @@ impl ServiceManager {
     }
 
     fn is_port_free(&self, port: u16) -> bool {
-        std::net::TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+        match std::net::TcpListener::bind(format!("127.0.0.1:{}", port)) {
+            Ok(_) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => false,
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                #[cfg(unix)]
+                {
+                    if let Ok(output) = std::process::Command::new("lsof")
+                        .args(["-i", &format!(":{}", port), "-sTCP:LISTEN", "-n", "-P"])
+                        .output()
+                    {
+                        return output.stdout.is_empty();
+                    }
+                }
+                true
+            }
+            Err(_) => false,
+        }
     }
 
     fn find_port_owner(&self, port: u16) -> Option<String> {
-        let sys = sysinfo::System::new_with_specifics(
-            sysinfo::RefreshKind::new().with_processes(sysinfo::ProcessRefreshKind::new()),
-        );
-        for (_pid, process) in sys.processes() {
-            for network in process.connections() {
-                if network.local_addr.port() == port {
-                    return Some(format!(
-                        "{} (PID {})",
-                        process.name().to_string_lossy(),
-                        process.pid()
-                    ));
+        #[cfg(unix)]
+        {
+            if let Ok(output) = std::process::Command::new("lsof")
+                .args(["-i", &format!(":{}", port), "-sTCP:LISTEN", "-n", "-P"])
+                .output()
+            {
+                if output.status.success() {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    for line in text.lines().skip(1) {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 2 {
+                            return Some(format!("{} (PID {})", parts[0], parts[1]));
+                        }
+                    }
                 }
             }
         }
-        None
+        Some(format!("Occupied by external service on port {}", port))
     }
 }

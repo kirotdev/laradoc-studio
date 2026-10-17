@@ -39,11 +39,11 @@ pub fn init_job_object() -> Result<(), String> {
 pub async fn spawn_service(
     kind: &ServiceKind,
     config: &LaradocConfig,
+    binary: &str,
 ) -> Result<u32, String> {
-    let binary = format!("{}\\{}.exe", config.bin_directory, kind.binary_name().replace('/', "\\"));
     let args = build_args(kind, config);
 
-    let mut cmd = tokio::process::Command::new(&binary);
+    let mut cmd = tokio::process::Command::new(binary);
     cmd.args(&args);
     cmd.current_dir(&config.data_directory);
     cmd.stdout(std::process::Stdio::piped());

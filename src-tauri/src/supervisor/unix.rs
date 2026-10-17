@@ -1,5 +1,4 @@
 use super::{LaradocConfig, ServiceKind};
-use std::os::unix::process::CommandExt;
 use tokio::process::Command;
 
 /// Spawn a service as a new process group on Unix (macOS & Linux).
@@ -7,11 +6,11 @@ use tokio::process::Command;
 pub async fn spawn_service(
     kind: &ServiceKind,
     config: &LaradocConfig,
+    binary: &str,
 ) -> Result<u32, String> {
-    let binary = format!("{}/{}", config.bin_directory, kind.binary_name());
     let args = build_args(kind, config);
 
-    let mut cmd = Command::new(&binary);
+    let mut cmd = Command::new(binary);
     cmd.args(&args);
     cmd.current_dir(&config.data_directory);
 
