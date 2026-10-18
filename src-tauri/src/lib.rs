@@ -49,6 +49,10 @@ pub fn run() {
             // Set up system tray
             tray::setup_tray(app.handle())?;
 
+            // Check for pre-bundled runtimes and unpack if present (Herd offline installer support)
+            let config = supervisor::LaradocConfig::default();
+            supervisor::RuntimeProvisioner::unpack_bundled_resources_if_present(&app_handle, &config);
+
             // Spawn the mail SMTP server
             let mail_handle = app_handle.clone();
             let mail_store_bg = Arc::clone(&mail_store);
@@ -64,11 +68,11 @@ pub fn run() {
                 }
             });
 
-            // Spawn vhost directory watcher on www/
+            // Spawn vhost directory watcher on root www/
             let vhost_handle = app_handle.clone();
-            let data_dir = app.path().app_data_dir().unwrap_or_default();
-            let www_dir = data_dir.join("www");
+            let www_dir = std::path::PathBuf::from(&config.www_directory);
             tauri::async_runtime::spawn(async move {
+
                 if let Err(e) = vhost::watcher::watch_www_directory(www_dir, vhost_handle).await {
                     log::error!("Directory watcher error: {}", e);
                 }
@@ -89,6 +93,7 @@ pub fn run() {
             commands::services::start_service,
             commands::services::stop_service,
             commands::services::restart_service,
+            commands::services::install_service,
             commands::services::get_services_status,
             commands::services::set_active_php,
             commands::sites::list_sites,
@@ -107,3 +112,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running Laradoc Studio");
 }
+

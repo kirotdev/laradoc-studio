@@ -77,16 +77,11 @@ async fn handle_www_event(event: &DebouncedEvent, www_dir: &Path, _app: &AppHand
     log::info!("Document root for {}: {:?}", project_name, public_root);
 
     // Generate Nginx vhost config
-    let etc_nginx = www_dir.parent()
-        .unwrap_or(Path::new("."))
-        .join("etc")
-        .join("nginx")
-        .join("sites-enabled");
-
-    let ssl_dir = www_dir.parent()
-        .unwrap_or(Path::new("."))
-        .join("etc")
-        .join("ssl");
+    let app_data = dirs::data_local_dir()
+        .unwrap_or_default()
+        .join("laradoc-studio");
+    let vhosts_dir = app_data.join("data").join("vhosts");
+    let ssl_dir = app_data.join("ssl").join("certs");
 
     let conf = super::template::generate_nginx_vhost(
         &project_name,
@@ -96,9 +91,9 @@ async fn handle_www_event(event: &DebouncedEvent, www_dir: &Path, _app: &AppHand
         "9083", // default PHP pool
     );
 
-    let conf_path = etc_nginx.join(format!("{}.conf", domain));
-    if let Err(e) = std::fs::create_dir_all(&etc_nginx) {
-        log::error!("Cannot create sites-enabled/: {}", e);
+    let conf_path = vhosts_dir.join(format!("{}.conf", domain));
+    if let Err(e) = std::fs::create_dir_all(&vhosts_dir) {
+        log::error!("Cannot create vhosts/: {}", e);
         return;
     }
     if let Err(e) = std::fs::write(&conf_path, &conf) {
@@ -106,6 +101,7 @@ async fn handle_www_event(event: &DebouncedEvent, www_dir: &Path, _app: &AppHand
         return;
     }
     log::info!("Generated vhost config: {:?}", conf_path);
+
 
     // Update hosts file
     if let Err(e) = crate::hosts::add_domain(&domain) {
