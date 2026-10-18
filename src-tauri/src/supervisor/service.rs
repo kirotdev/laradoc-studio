@@ -75,6 +75,8 @@ impl ServiceKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ServiceState {
+    NotInstalled,
+    Installing,
     Stopped,
     Starting,
     Running,
@@ -94,6 +96,7 @@ pub struct ServiceInfo {
     pub cpu_percent: f32,
     pub error_message: Option<String>,
     pub conflict_process: Option<String>,
+    pub progress_percent: Option<u8>,
 }
 
 impl ServiceInfo {
@@ -109,6 +112,7 @@ impl ServiceInfo {
             cpu_percent: 0.0,
             error_message: None,
             conflict_process: None,
+            progress_percent: None,
         }
     }
 
@@ -123,6 +127,8 @@ impl ServiceInfo {
             name: self.display_name.clone(),
             kind: self.kind.as_str().to_string(),
             state: match self.state {
+                ServiceState::NotInstalled => "not_installed",
+                ServiceState::Installing => "installing",
                 ServiceState::Stopped => "stopped",
                 ServiceState::Starting => "starting",
                 ServiceState::Running => "running",
@@ -137,6 +143,7 @@ impl ServiceInfo {
             cpu_percent: self.cpu_percent,
             error_message: self.error_message.clone(),
             conflict_process: self.conflict_process.clone(),
+            progress_percent: self.progress_percent,
         }
     }
 }
@@ -154,4 +161,6 @@ pub struct ServiceStatus {
     pub cpu_percent: f32,
     pub error_message: Option<String>,
     pub conflict_process: Option<String>,
+    pub progress_percent: Option<u8>,
 }
+

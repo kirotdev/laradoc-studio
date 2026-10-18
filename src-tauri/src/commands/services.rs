@@ -75,3 +75,16 @@ pub async fn set_active_php(
     log::info!("Active PHP version set to {}", version);
     Ok(())
 }
+
+#[tauri::command]
+pub async fn install_service(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    service: String,
+) -> Result<(), String> {
+    let kind = ServiceKind::from_str(&service)
+        .ok_or_else(|| format!("Unknown service: {}", service))?;
+    let mut mgr = state.service_manager.lock().await;
+    mgr.install_service(kind, app).await
+}
+
