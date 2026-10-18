@@ -1,4 +1,5 @@
 import { LogEntry, invokeCommand } from '../lib/tauri';
+import { iconTrash, iconChevronDown } from '../lib/icons';
 
 export class LogViewer {
   private logs: LogEntry[] = [];
@@ -19,33 +20,41 @@ export class LogViewer {
   public render(): HTMLElement {
     const container = document.createElement('div');
     container.className = 'view-content';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.height = '100%';
+    container.style.overflow = 'hidden';
 
     container.innerHTML = `
-      <div class="log-terminal">
-        <div class="log-toolbar">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Log Stream:</span>
-            <select class="php-select" id="log-filter-service" style="background: var(--bg-elevated); padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <option value="all">All Services</option>
-              <option value="Nginx">Nginx</option>
-              <option value="PHP-Manager">PHP Pools</option>
-              <option value="MySQL">MySQL</option>
-              <option value="Redis">Redis</option>
-              <option value="Mailpit">Mail Catcher</option>
-              <option value="System">System</option>
-            </select>
+      <div class="log-card">
+        <div class="log-bar">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="custom-select-wrap">
+              <select class="custom-select" id="log-filter-service" style="background: #1e293b; color: #f8fafc; border-color: #334155;">
+                <option value="all">All Services</option>
+                <option value="Nginx">Nginx</option>
+                <option value="PHP">PHP Pools</option>
+                <option value="MySQL">MySQL</option>
+                <option value="Redis">Redis</option>
+                <option value="Mailpit">Mail Catcher</option>
+                <option value="System">System</option>
+              </select>
+              <span class="custom-select-arrow" style="color: #94a3b8;">${iconChevronDown()}</span>
+            </div>
           </div>
 
           <div style="display: flex; align-items: center; gap: 12px;">
-            <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; cursor: pointer;">
-              <input type="checkbox" id="log-autoscroll" ${this.autoScroll ? 'checked' : ''} />
+            <label style="font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="log-autoscroll" ${this.autoScroll ? 'checked' : ''} style="accent-color: #0f172a;" />
               Auto-scroll
             </label>
-            <button class="btn btn-secondary btn-sm" id="btn-clear-logs">Clear Output</button>
+            <button class="btn btn-secondary btn-sm" id="btn-clear-logs" style="background: #1e293b; color: #f8fafc; border-color: #334155;">
+              ${iconTrash()} Clear
+            </button>
           </div>
         </div>
 
-        <div class="log-output" id="terminal-output-body"></div>
+        <div class="log-scroll-area" id="terminal-output-body"></div>
       </div>
     `;
 
@@ -90,7 +99,7 @@ export class LogViewer {
       : this.logs.filter((l) => l.service.toLowerCase().includes(this.filterService.toLowerCase()));
 
     if (filtered.length === 0) {
-      target.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 40px;">No logs recorded yet.</div>`;
+      target.innerHTML = `<div style="color: #64748b; text-align: center; padding: 48px;">No logs recorded.</div>`;
       return;
     }
 
@@ -98,14 +107,15 @@ export class LogViewer {
       const line = document.createElement('div');
       line.className = 'log-line';
 
-      let levelClass = 'log-level-info';
-      if (log.level === 'error') levelClass = 'log-level-error';
-      else if (log.level === 'warn') levelClass = 'log-level-warn';
+      let tagColor = '#94a3b8';
+      if (log.level === 'error') tagColor = '#f87171';
+      else if (log.level === 'warn') tagColor = '#fbbf24';
+      else if (log.level === 'info') tagColor = '#38bdf8';
 
       line.innerHTML = `
-        <span class="log-timestamp">[${log.timestamp}]</span>
-        <span class="log-service">[${log.service}]</span>
-        <span class="${levelClass}">${this.escapeHtml(log.message)}</span>
+        <span class="log-time">${log.timestamp}</span>
+        <span class="log-tag" style="color: ${tagColor};">[${log.service}]</span>
+        <span class="log-msg">${this.escapeHtml(log.message)}</span>
       `;
       target.appendChild(line);
     });

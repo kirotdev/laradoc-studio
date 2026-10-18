@@ -7,7 +7,7 @@ export { isTauri };
 export interface ServiceStatus {
   name: string;
   kind: 'nginx' | 'php82' | 'php83' | 'php84' | 'php85' | 'mysql' | 'redis' | 'mailpit';
-  state: 'stopped' | 'starting' | 'running' | 'error' | 'conflict';
+  state: 'not_installed' | 'installing' | 'stopped' | 'starting' | 'running' | 'error' | 'conflict';
   port: number;
   pid: number | null;
   uptime_seconds: number;
@@ -15,7 +15,15 @@ export interface ServiceStatus {
   cpu_percent: number;
   error_message?: string;
   conflict_process?: string;
+  progress_percent?: number;
 }
+
+export interface RuntimeProgressPayload {
+  service: string;
+  percent: number;
+  status: string;
+}
+
 
 export interface SiteInfo {
   name: string;
